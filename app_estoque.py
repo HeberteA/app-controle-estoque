@@ -8,7 +8,7 @@ from gspread_dataframe import get_as_dataframe, set_with_dataframe
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
     page_title="Controle de Quantidade",
-    page_icon="🔢",
+    page_icon="📦",
     layout="wide"
 )
 
