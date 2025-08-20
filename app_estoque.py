@@ -5,14 +5,12 @@ import gspread
 from google.oauth2.service_account import Credentials
 from gspread_dataframe import get_as_dataframe, set_with_dataframe
 
-# --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
     page_title="Controle de Quantidade",
     page_icon="📦",
     layout="wide"
 )
 
-# --- AUTENTICAÇÃO E CONEXÃO COM GOOGLE SHEETS ---
 SCOPES = [
     'https://www.googleapis.com/auth/spreadsheets',
     'https://www.googleapis.com/auth/drive'
@@ -25,11 +23,9 @@ def connect_to_gsheet():
         scopes=SCOPES
     )
     client = gspread.authorize(creds)
-    # ATENÇÃO: Substitua "Controle de Estoque App" pelo nome exato da sua planilha
     spreadsheet = client.open("Controle de Estoque App")
     return spreadsheet
 
-# --- FUNÇÕES DE DADOS ---
 def carregar_dados(spreadsheet):
     try:
         estoque_ws = spreadsheet.worksheet("Estoque")
@@ -49,7 +45,6 @@ def carregar_dados(spreadsheet):
         st.error(f"Ocorreu um erro ao carregar os dados: {e}")
         return pd.DataFrame(columns=['Item', 'Quantidade']), pd.DataFrame(columns=['Timestamp', 'Tipo', 'Item', 'Quantidade'])
 
-# --- INICIALIZAÇÃO ---
 try:
     spreadsheet = connect_to_gsheet()
     estoque_df, movimentacoes_df = carregar_dados(spreadsheet)
@@ -58,11 +53,9 @@ except Exception as e:
     estoque_df = pd.DataFrame(columns=['Item', 'Quantidade'])
     movimentacoes_df = pd.DataFrame(columns=['Timestamp', 'Tipo', 'Item', 'Quantidade'])
 
-# --- TÍTULO DO APP ---
 st.title("📦 Sistema de Controle de Quantidade")
 st.markdown("---")
 
-# --- ABAS (TABS) ---
 tab1, tab2, tab3, tab4 = st.tabs([
     "📊 Dashboard", 
     "📥 Entrada de Itens", 
@@ -70,7 +63,6 @@ tab1, tab2, tab3, tab4 = st.tabs([
     "✏️ Editar Nome do Item"
 ])
 
-# --- ABA 1: DASHBOARD ---
 with tab1:
     st.header("Dashboard do Estoque")
 
@@ -96,7 +88,6 @@ with tab1:
     st.subheader("Histórico de Movimentações")
     st.dataframe(movimentacoes_df.sort_values('Timestamp', ascending=False), use_container_width=True)
 
-# --- ABA 2: ENTRADA DE ITENS ---
 with tab2:
     st.header("Registrar Entrada no Estoque")
     with st.form("form_entrada", clear_on_submit=True):
@@ -119,14 +110,12 @@ with tab2:
                     novo_item = pd.DataFrame([{'Item': nome_item, 'Quantidade': quantidade}])
                     estoque_df = pd.concat([estoque_df, novo_item], ignore_index=True)
                 
-                # Atualizar planilha
                 set_with_dataframe(spreadsheet.worksheet("Estoque"), estoque_df)
                 set_with_dataframe(spreadsheet.worksheet("Movimentacoes"), movimentacoes_df)
                 
                 st.success(f"✅ {quantidade} unidade(s) de '{nome_item}' adicionada(s)!")
                 st.rerun()
 
-# --- ABA 3: SAÍDA DE ITENS ---
 with tab3:
     st.header("Registrar Saída do Estoque")
     if estoque_df.empty:
@@ -146,14 +135,12 @@ with tab3:
                 estoque_df.loc[item_idx, 'Quantidade'] -= quantidade_saida
                 estoque_df = estoque_df[estoque_df['Quantidade'] > 0]
                 
-                # Atualizar planilha
                 set_with_dataframe(spreadsheet.worksheet("Estoque"), estoque_df)
                 set_with_dataframe(spreadsheet.worksheet("Movimentacoes"), movimentacoes_df)
                 
                 st.success(f"✔️ {quantidade_saida} unidade(s) de '{item_selecionado}' retiradas!")
                 st.rerun()
 
-# --- ABA 4: EDITAR NOME DO ITEM ---
 with tab4:
     st.header("Editar Nome do Item")
     if estoque_df.empty:
@@ -173,14 +160,11 @@ with tab4:
                     elif novo_nome.lower() != item_para_editar.lower() and not estoque_df[estoque_df['Item'].str.lower() == novo_nome.lower()].empty:
                         st.error(f"O item '{novo_nome}' já existe. Escolha um nome diferente.")
                     else:
-                        # Atualizar o DataFrame de estoque
                         idx_item = estoque_df[estoque_df['Item'] == item_para_editar].index[0]
                         estoque_df.loc[idx_item, 'Item'] = novo_nome
                         
-                        # Atualizar o nome no histórico de movimentações
                         movimentacoes_df.loc[movimentacoes_df['Item'] == item_para_editar, 'Item'] = novo_nome
                         
-                        # Salvar ambos na planilha
                         set_with_dataframe(spreadsheet.worksheet("Estoque"), estoque_df)
                         set_with_dataframe(spreadsheet.worksheet("Movimentacoes"), movimentacoes_df)
                         
