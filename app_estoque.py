@@ -5,12 +5,14 @@ import gspread
 from google.oauth2.service_account import Credentials
 from gspread_dataframe import get_as_dataframe, set_with_dataframe
 
+# --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
     page_title="Controle de Quantidade",
-    page_icon="📦",
+    page_icon="",
     layout="wide"
 )
 
+# --- AUTENTICAÇÃO E CONEXÃO COM GOOGLE SHEETS ---
 SCOPES = [
     'https://www.googleapis.com/auth/spreadsheets',
     'https://www.googleapis.com/auth/drive'
@@ -23,12 +25,15 @@ def connect_to_gsheet():
         scopes=SCOPES
     )
     client = gspread.authorize(creds)
+    # ATENÇÃO: Substitua "Controle de Estoque App" pelo nome exato da sua planilha
     spreadsheet = client.open("Controle de Estoque App")
     return spreadsheet
 
+# --- FUNÇÕES DE DADOS ---
 def carregar_dados(spreadsheet):
     try:
         estoque_ws = spreadsheet.worksheet("Estoque")
+        # .dropna(how='all') remove linhas que estão completamente vazias
         estoque_df = get_as_dataframe(estoque_ws).dropna(how='all')
         
         if not estoque_df.empty:
@@ -45,6 +50,7 @@ def carregar_dados(spreadsheet):
         st.error(f"Ocorreu um erro ao carregar os dados: {e}")
         return pd.DataFrame(columns=['Item', 'Quantidade']), pd.DataFrame(columns=['Timestamp', 'Tipo', 'Item', 'Quantidade'])
 
+# --- INICIALIZAÇÃO ---
 try:
     spreadsheet = connect_to_gsheet()
     estoque_df, movimentacoes_df = carregar_dados(spreadsheet)
@@ -53,9 +59,11 @@ except Exception as e:
     estoque_df = pd.DataFrame(columns=['Item', 'Quantidade'])
     movimentacoes_df = pd.DataFrame(columns=['Timestamp', 'Tipo', 'Item', 'Quantidade'])
 
-st.title("📦 Sistema de Controle de Quantidade")
+# --- TÍTULO DO APP ---
+st.title("🔢 Sistema de Controle de Quantidade")
 st.markdown("---")
 
+# --- ABAS (TABS) ---
 tab1, tab2, tab3, tab4 = st.tabs([
     "📊 Dashboard", 
     "📥 Entrada de Itens", 
@@ -63,6 +71,7 @@ tab1, tab2, tab3, tab4 = st.tabs([
     "✏️ Editar Nome do Item"
 ])
 
+# --- ABA 1: DASHBOARD ---
 with tab1:
     st.header("Dashboard do Estoque")
 
@@ -75,8 +84,10 @@ with tab1:
         col2.metric(label="Total de Itens no Estoque", value=f"{total_itens_estoque:,.0f}")
         
         st.subheader("Quantidade por Item")
-        chart_data_qty = estoque_df.set_index('Item')['Quantidade']
-        st.bar_chart(chart_data_qty)
+        # Criamos uma cópia para evitar o SettingWithCopyWarning
+        df_chart = estoque_df.copy()
+        df_chart.set_index('Item', inplace=True)
+        st.bar_chart(df_chart['Quantidade'])
 
     else:
         st.warning("Estoque vazio.")
@@ -88,6 +99,7 @@ with tab1:
     st.subheader("Histórico de Movimentações")
     st.dataframe(movimentacoes_df.sort_values('Timestamp', ascending=False), use_container_width=True)
 
+# --- ABA 2: ENTRADA DE ITENS ---
 with tab2:
     st.header("Registrar Entrada no Estoque")
     with st.form("form_entrada", clear_on_submit=True):
@@ -102,7 +114,9 @@ with tab2:
                 nova_movimentacao = pd.DataFrame([{'Timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'), 'Tipo': 'Entrada', 'Item': nome_item, 'Quantidade': quantidade}])
                 movimentacoes_df = pd.concat([movimentacoes_df, nova_movimentacao], ignore_index=True)
 
-                item_existente = estoque_df[estoque_df['Item'].str.lower() == nome_item.lower()]
+                # AQUI ESTÁ A CORREÇÃO: Adicionado .astype(str)
+                item_existente = estoque_df[estoque_df['Item'].astype(str).str.lower() == nome_item.lower()]
+                
                 if not item_existente.empty:
                     idx = item_existente.index[0]
                     estoque_df.loc[idx, 'Quantidade'] += quantidade
@@ -110,12 +124,14 @@ with tab2:
                     novo_item = pd.DataFrame([{'Item': nome_item, 'Quantidade': quantidade}])
                     estoque_df = pd.concat([estoque_df, novo_item], ignore_index=True)
                 
+                # Atualizar planilha
                 set_with_dataframe(spreadsheet.worksheet("Estoque"), estoque_df)
                 set_with_dataframe(spreadsheet.worksheet("Movimentacoes"), movimentacoes_df)
                 
                 st.success(f"✅ {quantidade} unidade(s) de '{nome_item}' adicionada(s)!")
                 st.rerun()
 
+# --- ABA 3: SAÍDA DE ITENS ---
 with tab3:
     st.header("Registrar Saída do Estoque")
     if estoque_df.empty:
@@ -135,18 +151,22 @@ with tab3:
                 estoque_df.loc[item_idx, 'Quantidade'] -= quantidade_saida
                 estoque_df = estoque_df[estoque_df['Quantidade'] > 0]
                 
+                # Atualizar planilha
                 set_with_dataframe(spreadsheet.worksheet("Estoque"), estoque_df)
                 set_with_dataframe(spreadsheet.worksheet("Movimentacoes"), movimentacoes_df)
                 
                 st.success(f"✔️ {quantidade_saida} unidade(s) de '{item_selecionado}' retiradas!")
                 st.rerun()
 
+# --- ABA 4: EDITAR NOME DO ITEM ---
 with tab4:
     st.header("Editar Nome do Item")
     if estoque_df.empty:
         st.warning("Nenhum item disponível para edição.")
     else:
-        item_para_editar = st.selectbox("Selecione o Item para Editar", options=sorted(estoque_df['Item'].unique()), key="edit_select")
+        # Filtra valores nulos ou vazios da lista de opções
+        opcoes_validas = sorted([item for item in estoque_df['Item'].unique() if pd.notna(item)])
+        item_para_editar = st.selectbox("Selecione o Item para Editar", options=opcoes_validas, key="edit_select")
         
         if item_para_editar:
             with st.form("form_edicao"):
@@ -157,16 +177,9 @@ with tab4:
                 if submitted_edicao:
                     if not novo_nome:
                         st.error("O novo nome não pode ser vazio.")
-                    elif novo_nome.lower() != item_para_editar.lower() and not estoque_df[estoque_df['Item'].str.lower() == novo_nome.lower()].empty:
+                    # AQUI ESTÁ A SEGUNDA CORREÇÃO: Adicionado .astype(str)
+                    elif novo_nome.lower() != item_para_editar.lower() and not estoque_df[estoque_df['Item'].astype(str).str.lower() == novo_nome.lower()].empty:
                         st.error(f"O item '{novo_nome}' já existe. Escolha um nome diferente.")
                     else:
-                        idx_item = estoque_df[estoque_df['Item'] == item_para_editar].index[0]
-                        estoque_df.loc[idx_item, 'Item'] = novo_nome
-                        
-                        movimentacoes_df.loc[movimentacoes_df['Item'] == item_para_editar, 'Item'] = novo_nome
-                        
-                        set_with_dataframe(spreadsheet.worksheet("Estoque"), estoque_df)
-                        set_with_dataframe(spreadsheet.worksheet("Movimentacoes"), movimentacoes_df)
-                        
-                        st.success(f"Item '{item_para_editar}' atualizado para '{novo_nome}'!")
-                        st.rerun()
+                        # Atualizar o DataFrame de estoque
+                        idx_item = estoque_df[estoque_df['Item'] == item_para_editar].
