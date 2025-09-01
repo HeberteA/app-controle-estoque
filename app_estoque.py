@@ -76,15 +76,17 @@ with tab1:
         col2.metric(label="Total de Itens no Estoque", value=f"{total_itens_estoque:,.0f}")
         
         st.subheader("Quantidade por Item")
-        fig = px.bar(estoque_df, 
-             x='Item', 
-             y='Quantidade', 
-             text='Quantidade',
-             title='Quantidade de cada Item no Estoque')
 
-         fig.update_traces(textposition='outside') 
-
-         st.plotly_chart(fig, use_container_width=True)
+        if not estoque_df.empty:
+            fig = px.bar(estoque_df.sort_values('Quantidade', ascending=False), 
+                         x='Item', 
+                         y='Quantidade', 
+                         text='Quantidade', 
+                         title='Quantidade de cada Item no Estoque')
+            
+            fig.update_traces(textposition='outside', textfont_size=12) 
+            
+            st.plotly_chart(fig, use_container_width=True)
 
     else:
         st.warning("Estoque vazio.")
