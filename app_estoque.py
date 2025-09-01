@@ -82,9 +82,9 @@ with tab1:
              text='Quantidade',
              title='Quantidade de cada Item no Estoque')
 
-fig.update_traces(textposition='outside') 
+         fig.update_traces(textposition='outside') 
 
-st.plotly_chart(fig, use_container_width=True)
+         st.plotly_chart(fig, use_container_width=True)
 
     else:
         st.warning("Estoque vazio.")
