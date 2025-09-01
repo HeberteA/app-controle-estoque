@@ -4,6 +4,7 @@ from datetime import datetime
 import gspread
 from google.oauth2.service_account import Credentials
 from gspread_dataframe import get_as_dataframe, set_with_dataframe
+import plotly.express as px
 
 st.set_page_config(
     page_title="Controle de Quantidade",
@@ -75,10 +76,15 @@ with tab1:
         col2.metric(label="Total de Itens no Estoque", value=f"{total_itens_estoque:,.0f}")
         
         st.subheader("Quantidade por Item")
-        # Criamos uma cópia para evitar o SettingWithCopyWarning
-        df_chart = estoque_df.copy()
-        df_chart.set_index('Item', inplace=True)
-        st.bar_chart(df_chart['Quantidade'])
+        fig = px.bar(estoque_df, 
+             x='Item', 
+             y='Quantidade', 
+             text='Quantidade',
+             title='Quantidade de cada Item no Estoque')
+
+fig.update_traces(textposition='outside') 
+
+st.plotly_chart(fig, use_container_width=True)
 
     else:
         st.warning("Estoque vazio.")
